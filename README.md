@@ -1,6 +1,6 @@
 # testygo
 
-``{
+{
   "repos": [
     {
       "url": "https://github.com/kevinraphael95/testygo",
@@ -10,4 +10,4 @@
       "should_read": true
     }
   ]
-}``
+}
