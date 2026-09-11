@@ -1,7 +1,7 @@
 local s,id=GetID()
 function s.initial_effect(c)
     -- Statut Gémeaux (Normal sur le Terrain/Cimetière)
-    aux.EnableGeminiAttribute(c)
+    aux.EnableGemini(c)
 
     -- Effet continu : Impossible de la sacrifier pour une Invocation Sacrifice
     local e1=Effect.CreateEffect(c)
@@ -36,8 +36,8 @@ function s.initial_effect(c)
 end
 
 -- Condition de ré-invocation vers le terrain adverse
-function s.morphtarget(e,tp,eg,ep,ev,re,r,rp)
-    return Duel.GetLocationCount(1-tp,LOCATION_MZONE)>0
+function s.morphtarget(e,tp,eg,ep,ev,re,r,rp,chk)
+    if chk==0 then return Duel.GetLocationCount(1-tp,LOCATION_MZONE)>0 end
 end
 
 function s.morphop(e,tp,eg,ep,ev,re,r,rp)
