@@ -2,7 +2,7 @@
 local s,id=GetID()
 function s.initial_effect(c)
 	--Traitée comme un Monstre Normal face recto sur le Terrain et dans le Cimetière
-	--(sauf quand elle est sur le terrain adverse via cet effet : là elle redevient Effet)
+	--(sauf une fois passée chez l'adversaire via l'effet Gémeaux : là elle redevient Effet)
 	local e1=Effect.CreateEffect(c)
 	e1:SetType(EFFECT_TYPE_SINGLE)
 	e1:SetProperty(EFFECT_FLAG_SINGLE_RANGE)
@@ -17,18 +17,20 @@ function s.initial_effect(c)
 	e2:SetValue(TYPE_EFFECT)
 	c:RegisterEffect(e2)
 
-	--Invocation Normale sur le terrain adverse
+	--GÉMEAUX : 2e "Invocation Normale", depuis le terrain (où elle est déjà face recto,
+	--sous ton contrôle), vers le terrain adverse
 	local e3=Effect.CreateEffect(c)
 	e3:SetDescription(aux.Stringid(id,0))
 	e3:SetProperty(EFFECT_FLAG_CANNOT_DISABLE+EFFECT_FLAG_UNCOPYABLE)
-	e3:SetType(EFFECT_TYPE_SINGLE)
+	e3:SetType(EFFECT_TYPE_FIELD)
 	e3:SetCode(EFFECT_SUMMON_PROC)
-	e3:SetRange(LOCATION_HAND)
-	e3:SetCondition(s.sumcon)
-	e3:SetOperation(s.sumop)
-	c:RegisterEffect(e3)
+	e3:SetRange(LOCATION_MZONE)
+	e3:SetTargetRange(1,0)
+	e3:SetCondition(s.geminicon)
+	e3:SetOperation(s.geminiop)
+	c:RegisterEffect(e3,true)
 
-	--Ne peut pas être sacrifiée pour une Invocation Sacrifice (tant que sur le terrain adverse)
+	--Ne peut pas être sacrifiée pour une Invocation Sacrifice (tant que côté adverse)
 	local e4=Effect.CreateEffect(c)
 	e4:SetType(EFFECT_TYPE_SINGLE)
 	e4:SetCode(EFFECT_UNRELEASABLE_SUM)
@@ -50,26 +52,27 @@ function s.initial_effect(c)
 	c:RegisterEffect(e5)
 end
 
---Condition "traitée comme Normal" : uniquement tant que sous le contrôle de son propriétaire
---(en GY, propriétaire = contrôleur de fait, donc toujours vrai là-bas)
+--Traitée comme Normal seulement tant qu'elle n'a pas encore été "réinvoquée" chez l'adversaire
 function s.normcon(e)
 	local c=e:GetHandler()
 	if c:IsLocation(LOCATION_GRAVE) then return true end
 	return c:IsFaceup() and c:GetOwner()==c:GetControler()
 end
 
---Invocation Normale procédurale vers le terrain adverse
-function s.sumcon(e,c,minc)
-	if c==nil then return true end
+--Condition de la 2e Invocation Normale (Gémeaux), depuis le terrain
+function s.geminicon(e,c,minc)
+	if c==nil then c=e:GetHandler() end
 	local tp=c:GetControler()
-	return minc==0 and Duel.GetLocationCount(1-tp,LOCATION_MZONE)>0
+	return minc==0 and c:IsFaceup() and c:GetOwner()==tp
+		and Duel.GetLocationCount(1-tp,LOCATION_MZONE)>0
 end
-function s.sumop(e,tp,eg,ep,ev,re,r,rp,c)
+function s.geminiop(e,tp,eg,ep,ev,re,r,rp,c)
+	if c==nil then c=e:GetHandler() end
 	c:SetStatus(STATUS_SUMMONED_ATTACK,true)
 	Duel.MoveToField(c,tp,1-tp,LOCATION_MZONE,POS_FACEUP_ATTACK,true)
 end
 
---Condition commune : la carte est sur le terrain, contrôlée par quelqu'un d'autre que son propriétaire
+--Condition commune : contrôlée par quelqu'un d'autre que son propriétaire (= côté adverse)
 function s.effcon(e)
 	local c=e:GetHandler()
 	return c:GetOwner()~=c:GetControler()
