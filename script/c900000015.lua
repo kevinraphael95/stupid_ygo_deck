@@ -17,7 +17,7 @@ end
 
 -- Filtre : monstre Normal, en main ou face recto sur le terrain
 function s.matfilter(c)
-    return c:IsNormal() and (c:IsLocation(LOCATION_HAND) or (c:IsLocation(LOCATION_MZONE) and c:IsFaceup()))
+    return c:IsType(TYPE_NORMAL) and c:IsMonster() and (c:IsLocation(LOCATION_HAND) or (c:IsLocation(LOCATION_MZONE) and c:IsFaceup()))
 end
 
 -- Filtre : monstre Fusion dans l'Extra Deck qui partage un Attribut avec au moins un des matériaux
