@@ -17,18 +17,18 @@ function s.initial_effect(c)
 	e2:SetValue(TYPE_EFFECT)
 	c:RegisterEffect(e2)
 
-	--GÉMEAUX : 2e "Invocation Normale", depuis le terrain (où elle est déjà face recto,
-	--sous ton contrôle), vers le terrain adverse
+	--GÉMEAUX : Effet à Activer (une fois par tour) qui l'envoie chez l'adversaire
+	--depuis ton terrain, où elle est déjà face recto
 	local e3=Effect.CreateEffect(c)
 	e3:SetDescription(aux.Stringid(id,0))
-	e3:SetProperty(EFFECT_FLAG_CANNOT_DISABLE+EFFECT_FLAG_UNCOPYABLE)
-	e3:SetType(EFFECT_TYPE_FIELD)
-	e3:SetCode(EFFECT_SUMMON_PROC)
+	e3:SetCategory(CATEGORY_SPECIAL_SUMMON)
+	e3:SetType(EFFECT_TYPE_IGNITION)
 	e3:SetRange(LOCATION_MZONE)
-	e3:SetTargetRange(1,0)
+	e3:SetCountLimit(1)
 	e3:SetCondition(s.geminicon)
+	e3:SetTarget(s.geminitg)
 	e3:SetOperation(s.geminiop)
-	c:RegisterEffect(e3,true)
+	c:RegisterEffect(e3)
 
 	--Ne peut pas être sacrifiée pour une Invocation Sacrifice (tant que côté adverse)
 	local e4=Effect.CreateEffect(c)
@@ -59,17 +59,21 @@ function s.normcon(e)
 	return c:IsFaceup() and c:GetOwner()==c:GetControler()
 end
 
---Condition de la 2e Invocation Normale (Gémeaux), depuis le terrain
-function s.geminicon(e,c,minc)
-	if c==nil then c=e:GetHandler() end
-	local tp=c:GetControler()
-	return minc==0 and c:IsFaceup() and c:GetOwner()==tp
-		and Duel.GetLocationCount(1-tp,LOCATION_MZONE)>0
+--Condition de l'effet Gémeaux : face recto, sous ton contrôle (donc pas déjà envoyée)
+function s.geminicon(e,tp,eg,ep,ev,re,r,rp)
+	local c=e:GetHandler()
+	return c:IsFaceup() and c:GetOwner()==tp and c:GetControler()==tp
 end
-function s.geminiop(e,tp,eg,ep,ev,re,r,rp,c)
-	if c==nil then c=e:GetHandler() end
-	c:SetStatus(STATUS_SUMMONED_ATTACK,true)
-	Duel.MoveToField(c,tp,1-tp,LOCATION_MZONE,POS_FACEUP_ATTACK,true)
+function s.geminitg(e,tp,eg,ep,ev,re,r,rp,chk)
+	if chk==0 then return Duel.GetLocationCount(1-tp,LOCATION_MZONE)>0 end
+	Duel.SetOperationInfo(0,CATEGORY_SPECIAL_SUMMON,e:GetHandler(),1,0,0)
+end
+function s.geminiop(e,tp,eg,ep,ev,re,r,rp)
+	local c=e:GetHandler()
+	if c:IsRelateToEffect(e) and c:IsFaceup() and c:GetControler()==tp
+		and Duel.GetLocationCount(1-tp,LOCATION_MZONE)>0 then
+		Duel.MoveToField(c,tp,1-tp,LOCATION_MZONE,POS_FACEUP_ATTACK,true)
+	end
 end
 
 --Condition commune : contrôlée par quelqu'un d'autre que son propriétaire (= côté adverse)
