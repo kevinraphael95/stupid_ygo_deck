@@ -25,20 +25,23 @@ function s.fusfilter(c, g)
     return c:IsType(TYPE_FUSION) and g:IsExists(Card.IsAttribute, 1, nil, c:GetAttribute())
 end
 
+-- Fonction pour vérifier si une paire de monstres permet d'invoquer un Fusion valide
+function s.checkpair(g)
+    return g:IsExists(function(c1)
+        return g:IsExists(function(c2)
+            if c1 == c2 then return false end
+            local cg = Group.FromCards(c1, c2)
+            return Duel.IsExistingMatchingCard(s.fusfilter, 0, LOCATION_EXTRA, 0, 1, nil, cg)
+        end, 1, nil, nil)
+    end, 1, nil, nil)
+end
+
 -- Ciblage : vérifie qu'il y a au moins 2 monstres Normaux et qu'une paire permet d'invoquer un Fusion valide
 function s.target(e, tp, eg, ep, ev, re, r, rp, chk)
     if chk == 0 then
         local g = Duel.GetMatchingGroup(s.matfilter, tp, LOCATION_HAND + LOCATION_MZONE, 0, nil)
         if g:GetCount() < 2 then return false end
-
-        -- Vérifie qu'il existe au moins une paire de 2 monstres permettant d'invoquer un Fusion valide
-        return g:IsExists(function(c1)
-            return g:IsExists(function(c2)
-                if c1 == c2 then return false end
-                local cg = Group.FromCards(c1, c2)
-                return Duel.IsExistingMatchingCard(s.fusfilter, tp, LOCATION_EXTRA, 0, 1, nil, cg)
-            end)
-        end)
+        return s.checkpair(g)
     end
     Duel.SetOperationInfo(0, CATEGORY_SPECIAL_SUMMON, nil, 1, tp, LOCATION_EXTRA)
 end
