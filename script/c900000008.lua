@@ -1,20 +1,32 @@
-local s,id=GetID()
+--Trouver un travail
+-- MAGIE RAPIDE
+-- "Les joueurs qui ont un travail perdent 2000 LP."
+-- (seul l'adversaire est considéré comme "ayant un travail")
+-- Le reste du texte (appeler l'employeur, démission...) est du flavor,
+-- non gérable par le moteur : les joueurs l'appliquent eux-mêmes à l'oral.
+
+local s,id = GetID()
+
+--------------------------------------------------
+-- INITIALISATION : on enregistre l'effet d'activation
+--------------------------------------------------
 function s.initial_effect(c)
-    local e1=Effect.CreateEffect(c)
-    e1:SetCategory(CATEGORY_DAMAGE)
-    e1:SetType(EFFECT_TYPE_ACTIVATE)
-    e1:SetCode(EVENT_FREE_CHAIN)
-    e1:SetTarget(s.target)
-    e1:SetOperation(s.activate)
-    c:RegisterEffect(e1)
+	local e1 = Effect.CreateEffect(c)
+	e1:SetType(EFFECT_TYPE_ACTIVATE)   -- effet d'activation classique
+	e1:SetCode(EVENT_FREE_CHAIN)       -- s'active librement, comme une magie rapide normale
+	e1:SetOperation(s.operation)       -- fonction exécutée à la résolution
+	c:RegisterEffect(e1)
 end
 
-function s.target(e,tp,eg,ep,ev,re,r,rp,chk)
-    if chk==0 then return true end
-    Duel.SetOperationInfo(0,CATEGORY_DAMAGE,nil,0,1-tp,2000)
-end
+--------------------------------------------------
+-- OPERATION : ce qui se passe à la résolution de la carte
+--------------------------------------------------
+function s.operation(e,tp,eg,ep,ev,re,r,rp)
+	local op = 1 - tp -- "op" = l'adversaire du joueur qui a activé la carte
 
-function s.activate(e,tp,eg,ep,ev,re,r,rp)
-    -- Seul l'adversaire (1-tp) a un travail et perd 2000 LP, le joueur (tp) ne perd rien
-    Duel.Damage(1-tp,2000,REASON_EFFECT)
+	-- on vérifie que l'adversaire a encore des LP avant d'infliger les dégâts
+	-- (évite une erreur si jamais ses LP sont déjà à 0)
+	if Duel.GetLP(op) > 0 then
+		Duel.Damage(op, 2000, REASON_EFFECT) -- inflige 2000 dégâts à l'adversaire
+	end
 end
