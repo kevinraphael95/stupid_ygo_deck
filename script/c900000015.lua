@@ -1,70 +1,75 @@
--- Fusion au pif
--- Magie Rapide
--- Utilise 2 monstres Normaux depuis ta main et/ou ton terrain comme matériaux.
--- Invoque Fusion 1 monstre Fusion depuis ton Extra Deck qui partage un Attribut avec l'un des deux monstres sacrifiés.
+--Fusion au pif
+-- MAGIE RAPIDE
+-- Invoque par Fusion en utilisant 2 Monstres Normaux depuis la main et/ou le terrain
+-- comme matériel, mais uniquement un Monstre Fusion qui partage le même Attribut
+-- que l'un des deux monstres sacrifiés.
 
-local s, id = GetID()
+local s,id = GetID()
 
 function s.initial_effect(c)
-    -- Activate
-    local e1 = Effect.CreateEffect(c)
-    e1:SetType(EFFECT_TYPE_ACTIVATE)
-    e1:SetCode(EVENT_FREE_CHAIN)
-    e1:SetTarget(s.target)
-    e1:SetOperation(s.activate)
-    c:RegisterEffect(e1)
+	local e1 = Effect.CreateEffect(c)
+	e1:SetType(EFFECT_TYPE_ACTIVATE)
+	e1:SetCode(EVENT_FREE_CHAIN)
+	e1:SetTarget(s.target)
+	e1:SetOperation(s.operation)
+	c:RegisterEffect(e1)
+
+	-- Nécessaire pour que Duel.IsExistingFusionMaterial / SelectFusionMaterial fonctionnent
+	local e2 = Effect.CreateEffect(c)
+	e2:SetType(EFFECT_TYPE_FIELD)
+	e2:SetCode(EFFECT_FUSION_MATERIAL)
+	e2:SetRange(LOCATION_SZONE)
+	e2:SetTargetRange(LOCATION_HAND+LOCATION_MZONE,0)
+	c:RegisterEffect(e2)
 end
 
--- Filtre : monstre Normal, en main ou face recto sur le terrain
-function s.matfilter(c)
-    return c:IsType(TYPE_NORMAL) and c:IsMonster() and (c:IsLocation(LOCATION_HAND) or (c:IsLocation(LOCATION_MZONE) and c:IsFaceup()))
+--------------------------------------------------
+-- FILTRE : uniquement les Monstres Normaux, en main ou sur le terrain
+--------------------------------------------------
+function s.filter(c)
+	return c:IsType(TYPE_NORMAL)
 end
 
--- Filtre : monstre Fusion dans l'Extra Deck qui partage un Attribut avec au moins un des matériaux
-function s.fusfilter(c, g)
-    return c:IsType(TYPE_FUSION) and g:IsExists(Card.IsAttribute, 1, nil, c:GetAttribute())
+--------------------------------------------------
+-- TARGET : vérifie qu'on a au moins 2 Monstres Normaux disponibles
+-- ET qu'un Monstre Fusion valide existe (même Attribut qu'un des deux)
+--------------------------------------------------
+function s.target(e,tp,eg,ep,ev,re,r,rp,chk)
+	if chk==0 then
+		if not Duel.IsExistingMatchingCard(s.filter,tp,LOCATION_HAND+LOCATION_MZONE,0,2,nil) then
+			return false
+		end
+		return Duel.IsExistingFusionMaterial(tp,nil,2,2)
+	end
 end
 
--- Fonction pour vérifier si une paire de monstres permet d'invoquer un Fusion valide
-function s.checkpair(g)
-    return g:IsExists(function(c1)
-        return g:IsExists(function(c2)
-            if c1 == c2 then return false end
-            local cg = Group.FromCards(c1, c2)
-            return Duel.IsExistingMatchingCard(s.fusfilter, 0, LOCATION_EXTRA, 0, 1, nil, cg)
-        end, 1, nil, nil)
-    end, 1, nil, nil)
-end
+--------------------------------------------------
+-- OPERATION : sélection des 2 matériaux, puis choix restreint du Fusion
+--------------------------------------------------
+function s.operation(e,tp,eg,ep,ev,re,r,rp)
+	-- le joueur choisit 2 Monstres Normaux (main et/ou terrain) comme matériel
+	local g = Duel.GetMatchingGroup(s.filter,tp,LOCATION_HAND+LOCATION_MZONE,0,nil)
+	if g:GetCount() < 2 then return end
+	local mg = g:Select(tp,2,2,nil)
+	if mg:GetCount() ~= 2 then return end
 
--- Ciblage : vérifie qu'il y a au moins 2 monstres Normaux et qu'une paire permet d'invoquer un Fusion valide
-function s.target(e, tp, eg, ep, ev, re, r, rp, chk)
-    if chk == 0 then
-        local g = Duel.GetMatchingGroup(s.matfilter, tp, LOCATION_HAND + LOCATION_MZONE, 0, nil)
-        if g:GetCount() < 2 then return false end
-        return s.checkpair(g)
-    end
-    Duel.SetOperationInfo(0, CATEGORY_SPECIAL_SUMMON, nil, 1, tp, LOCATION_EXTRA)
-end
+	-- on récupère les Attributs des deux monstres choisis
+	local mc1 = mg:GetFirst()
+	local mc2 = mg:GetNext()
+	local attr1 = mc1:GetAttribute()
+	local attr2 = mc2:GetAttribute()
 
--- Activation : sélection des matériaux, vérification, envoi au cimetière, invocation Fusion
-function s.activate(e, tp, eg, ep, ev, re, r, rp)
-    -- Sélection des 2 monstres Normaux
-    local g = Duel.SelectMatchingCard(tp, s.matfilter, tp, LOCATION_HAND + LOCATION_MZONE, 0, 2, 2, nil)
-    if g:GetCount() ~= 2 then return end
+	-- filtre du Monstre Fusion : doit partager l'Attribut de mc1 OU mc2
+	local ffilter = function(fc)
+		local fattr = fc:GetAttribute()
+		return (fattr==attr1 or fattr==attr2) and fc:IsFusionSummonable()
+	end
 
-    -- Vérifie qu'un monstre Fusion valide existe avec cette paire
-    if not Duel.IsExistingMatchingCard(s.fusfilter, tp, LOCATION_EXTRA, 0, 1, nil, g) then return end
-
-    -- Révèle les matériaux à l'adversaire
-    Duel.ConfirmCards(1 - tp, g)
-
-    -- Envoi des matériaux au cimetière
-    Duel.SendtoGrave(g, REASON_FUSION + REASON_MATERIAL + REASON_EFFECT)
-    Duel.BreakEffect()
-
-    -- Sélection et invocation du monstre Fusion
-    local fc = Duel.SelectMatchingCard(tp, s.fusfilter, tp, LOCATION_EXTRA, 0, 1, 1, nil, g):GetFirst()
-    if fc then
-        Duel.SpecialSummon(fc, SUMMON_TYPE_FUSION, tp, tp, false, false, POS_FACEUP)
-    end
+	-- Invocation Fusion classique, mais limitée aux Fusions correspondant au filtre
+	Duel.SpecialSummonComplete()
+	Duel.SendtoGrave(mg,REASON_MATERIAL+REASON_FUSION)
+	local fc = Duel.SelectFusionCard(tp,ffilter)
+	if fc then
+		Duel.SpecialSummon(fc,SUMMON_TYPE_FUSION,tp,tp,false,false,POS_FACEUP)
+	end
 end
