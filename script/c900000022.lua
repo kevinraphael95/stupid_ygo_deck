@@ -1,68 +1,106 @@
 --Le Cancer
-local s,id=GetID()
-function s.initial_effect(c)
-	--Mécanisme Gémeaux natif du moteur : traité comme Normal Monster face recto
-	--sur le Terrain/Cimetière, ET peut être Invoqué Normalement une 2e fois
-	--(apparaît nativement comme option d'Invocation Normale dans le client)
-	Gemini.AddProcedure(c)
+-- MONSTRE GEMINI
+-- Traité comme Monstre Normal (face recto sur le terrain et au cimetière),
+-- SAUF une fois "re-invoqué" chez l'adversaire (voir Effet 2).
+-- Effet 2 : si sur votre terrain, vous pouvez l'invoquer (à nouveau) sur le terrain
+--           de l'adversaire ; il devient alors un Monstre à Effet :
+--           son PROPRIÉTAIRE perd 1000 LP à chacune de ses End Phases.
+-- Ne peut pas être sacrifié pour une Invocation Sacrifice.
 
-	--Quand la 2e Invocation Normale (Gémeaux) réussit : donne le contrôle à l'adversaire
-	local e2=Effect.CreateEffect(c)
+local s,id = GetID()
+
+function s.initial_effect(c)
+
+	-------------------------------------------------
+	-- EFFET 1 : traité comme Monstre Normal, tant que le flag "re-invoqué" n'est pas posé
+	-------------------------------------------------
+	local e1 = Effect.CreateEffect(c)
+	e1:SetType(EFFECT_TYPE_SINGLE)
+	e1:SetCode(EFFECT_ADD_TYPE)
+	e1:SetValue(TYPE_NORMAL)
+	e1:SetCondition(s.normalcon)
+	c:RegisterEffect(e1)
+
+	local e1b = e1:Clone()
+	e1b:SetCode(EFFECT_REMOVE_TYPE)
+	e1b:SetValue(TYPE_EFFECT)
+	c:RegisterEffect(e1b)
+
+	-------------------------------------------------
+	-- EFFET 2 : Invocation (façon Normale) sur le terrain de l'adversaire
+	-------------------------------------------------
+	local e2 = Effect.CreateEffect(c)
 	e2:SetDescription(aux.Stringid(id,0))
-	e2:SetCategory(CATEGORY_CONTROL)
-	e2:SetType(EFFECT_TYPE_SINGLE+EFFECT_TYPE_TRIGGER_F)
-	e2:SetCode(EVENT_SUMMON_SUCCESS)
+	e2:SetType(EFFECT_TYPE_IGNITION)
+	e2:SetCode(EVENT_FREE_CHAIN)
 	e2:SetRange(LOCATION_MZONE)
+	e2:SetCountLimit(1)
 	e2:SetCondition(s.gemcon)
 	e2:SetTarget(s.gemtg)
 	e2:SetOperation(s.gemop)
 	c:RegisterEffect(e2)
 
-	--Ne peut pas être sacrifiée pour une Invocation Sacrifice (une fois en statut Gémeaux/Effet)
-	local e3=Effect.CreateEffect(c)
-	e3:SetType(EFFECT_TYPE_SINGLE)
-	e3:SetCode(EFFECT_UNRELEASABLE_SUM)
-	e3:SetProperty(EFFECT_FLAG_SINGLE_RANGE)
+	-------------------------------------------------
+	-- EFFET 3 : LP perdus par le PROPRIÉTAIRE, seulement une fois "re-invoqué"
+	-------------------------------------------------
+	local e3 = Effect.CreateEffect(c)
+	e3:SetType(EFFECT_TYPE_FIELD)
+	e3:SetCode(EVENT_PHASE+PHASE_END)
 	e3:SetRange(LOCATION_MZONE)
-	e3:SetCondition(Gemini.EffectStatusCondition)
-	e3:SetValue(1)
+	e3:SetCondition(s.lpcon)
+	e3:SetOperation(s.lpop)
 	c:RegisterEffect(e3)
 
-	--Le PROPRIÉTAIRE perd 1000 LP à chacune de SES End Phases (une fois en statut Gémeaux/Effet)
-	local e4=Effect.CreateEffect(c)
-	e4:SetDescription(aux.Stringid(id,1))
-	e4:SetType(EFFECT_TYPE_FIELD+EFFECT_TYPE_TRIGGER_F)
-	e4:SetCode(EVENT_PHASE_START+PHASE_END)
-	e4:SetRange(LOCATION_MZONE)
-	e4:SetCountLimit(1)
-	e4:SetCondition(s.lpcon)
-	e4:SetOperation(s.lpop)
+	-------------------------------------------------
+	-- EFFET 4 : ne peut pas être sacrifié pour une Invocation Sacrifice
+	-------------------------------------------------
+	local e4 = Effect.CreateEffect(c)
+	e4:SetType(EFFECT_TYPE_SINGLE)
+	e4:SetCode(EFFECT_CANNOT_RELEASE)
 	c:RegisterEffect(e4)
 end
 
---Condition : la carte vient d'être Invoquée Normalement via son statut Gémeaux
-function s.gemcon(e,tp,eg,ep,ev,re,r,rp)
-	return e:GetHandler():IsGeminiSummoned()
+--------------------------------------------------
+-- CONDITION EFFET 1 : "normal" tant que le flag n'a pas été posé
+--------------------------------------------------
+function s.normalcon(e)
+	local c = e:GetHandler()
+	return c:GetFlagEffect(id) == 0
 end
+
+--------------------------------------------------
+-- CONDITION EFFET 2 : la carte doit être sur VOTRE terrain, et pas déjà "re-invoquée"
+--------------------------------------------------
+function s.gemcon(e,tp,eg,ep,ev,re,r,rp)
+	local c = e:GetHandler()
+	return c:IsControler(tp) and c:GetFlagEffect(id) == 0
+end
+
 function s.gemtg(e,tp,eg,ep,ev,re,r,rp,chk)
 	if chk==0 then return true end
-	Duel.SetOperationInfo(0,CATEGORY_CONTROL,e:GetHandler(),1,1-tp,0)
 end
+
+--------------------------------------------------
+-- OPERATION EFFET 2 : marque le flag, puis la déplace sur le terrain adverse
+--------------------------------------------------
 function s.gemop(e,tp,eg,ep,ev,re,r,rp)
-	local c=e:GetHandler()
-	if c:IsRelateToEffect(e) then
-		Duel.GetControl(c,1-tp,0,0)
+	local c = e:GetHandler()
+	local op = 1-tp
+	if c:IsRelateToEffect(e) and c:IsFaceup() then
+		c:SetFlagEffect(id,1)  -- bascule définitivement en état "Monstre à Effet"
+		Duel.SpecialSummon(c,SUMMON_TYPE_NORMAL,tp,op,false,false,POS_FACEUP)
 	end
 end
 
---Perte de LP du propriétaire à SA End Phase, seulement en statut Gémeaux/Effet
+--------------------------------------------------
+-- CONDITION EFFET 3 : uniquement une fois le flag posé, à la End Phase du PROPRIÉTAIRE
+--------------------------------------------------
 function s.lpcon(e,tp,eg,ep,ev,re,r,rp)
-	local c=e:GetHandler()
-	return Gemini.EffectStatusCondition(e) and Duel.GetTurnPlayer()==c:GetOwner()
+	local c = e:GetHandler()
+	return c:GetFlagEffect(id) ~= 0 and Duel.GetTurnPlayer() == c:GetOwner()
 end
+
 function s.lpop(e,tp,eg,ep,ev,re,r,rp)
-	local c=e:GetHandler()
-	if c:IsRelateToEffect(e) then
-		Duel.LoseLP(c:GetOwner(),1000)
-	end
+	local c = e:GetHandler()
+	Duel.Damage(c:GetOwner(),1000,REASON_EFFECT)
 end
